@@ -1,0 +1,29 @@
+# Default Minecraft environment configuration
+defaults:
+  - base
+  - _self_
+
+# Environment settings
+env:
+  seed: 42
+  obs_width: 640
+  obs_height: 360
+  preferred_spawn_biome: "plains"
+  action_type: "agent"
+  timestep_limit: 1000
+
+# Task description
+text: "Basic Minecraft survival and exploration task."
+
+# Custom initialization commands
+custom_init_commands:
+  - "/time set day"
+  - "/weather clear"
+
+# Simulator callbacks (will be loaded by server)
+# sim_callbacks:
+#   - import: "verl.workers.agent.envs.mc.MineStudio.minestudio.simulator.callbacks.RecordCallback"
+#     kwargs:
+#       record_path: "./output"
+#       fps: 30
+#       frame_type: "pov"

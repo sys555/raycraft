@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raycraft"
+version = "1.0.0"
+description = "Pure Ray-based Minecraft Gym Environment"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Raycraft Contributors"}
+]
+keywords = ["minecraft", "reinforcement-learning", "ray", "gym", "distributed"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "ray>=2.0.0",
+    "numpy>=1.20.0",
+    "pillow>=8.0.0",
+    "pyyaml>=6.0",
+    "requests>=2.25.0",
+    "opencv-python>=4.8.0",
+    "imageio>=2.30.0",
+    "imageio-ffmpeg>=0.3.0",
+    "gym>=0.26.0",
+    "pydantic>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/YOUR_ORG/raycraft"
+Repository = "https://github.com/YOUR_ORG/raycraft"
+Issues = "https://github.com/YOUR_ORG/raycraft/issues"
+Documentation = "https://github.com/YOUR_ORG/raycraft/tree/main/docs"
+
+[tool.setuptools.packages.find]
+include = ["raycraft*"]
+
+[tool.setuptools.package-data]
+raycraft = ["configs/**/*.yaml"]

@@ -1,0 +1,15 @@
+# Base configuration for Minecraft environment
+env:
+  obs_width: 640
+  obs_height: 360
+  preferred_spawn_biome: "plains"
+  action_type: "agent"
+  timestep_limit: 1000
+
+# Basic callback configuration (commented out for testing)
+# sim_callbacks:
+#   - import: "verl.workers.agent.envs.mc.MineStudio.minestudio.simulator.callbacks.RecordCallback"
+#     kwargs:
+#       record_path: "./output"
+#       fps: 30
+#       frame_type: "pov"

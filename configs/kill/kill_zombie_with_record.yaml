@@ -1,0 +1,53 @@
+defaults:
+  - base
+  - _self_
+
+seed: 3001859308298079279
+teleport:
+  x: 31
+  y: 64
+  z: 61
+command:
+  - "/time set night"
+  - "/summon minecraft:zombie ~2 ~ ~5 {Health:1.0f,Attributes:[{Name:generic.max_health,Base:10.0}]}"
+  - "/summon minecraft:zombie ~-2 ~ ~7 {Health:1.0f,Attributes:[{Name:generic.max_health,Base:10.0}]}"
+  - "/summon minecraft:zombie ~0 ~ ~8 {Health:1.0f,Attributes:[{Name:generic.max_health,Base:10.0}]}"
+
+task_conf:
+  - name: "kill_entity"
+    text: "kill_entity:zombie"
+
+reward_conf:
+  - event: "kill_entity"
+    max_reward_times: 1
+    reward: 1.0
+    objects:
+      - "zombie"
+    identity: "kill zombie"
+
+init_inventory:
+  - slot: 0
+    type: "diamond_sword"
+    quantity: 1
+  - slot: 39  # 头盔槽位
+    type: "diamond_helmet"
+    quantity: 1
+  - slot: 38  # 胸甲槽位
+    type: "diamond_chestplate"
+    quantity: 1
+  - slot: 37  # 护腿槽位
+    type: "diamond_leggings"
+    quantity: 1
+  - slot: 36  # 靴子槽位
+    type: "diamond_boots"
+    quantity: 1
+
+# 启用录制
+sim_callbacks:
+  - import: "minestudio.simulator.callbacks.RecordCallback"
+    kwargs:
+      record_path: "/fs-computility/ai-shen/leishanzhe/repo/AgentGym/agentenv-mc/output"
+      fps: 30
+      frame_type: "pov"
+      # recording: true
+      # show_actions: true
