@@ -2,6 +2,11 @@
 import sys
 from pathlib import Path
 
+# 添加当前目录到路径（修复相对导入问题）
+current_dir = Path(__file__).parent
+if str(current_dir) not in sys.path:
+    sys.path.insert(0, str(current_dir))
+
 # 添加MineStudio到路径
 minestudio_path = Path(__file__).parent.parent / "MineStudio"
 if str(minestudio_path) not in sys.path:
@@ -28,8 +33,8 @@ class ToolBase:
     def __init__(self, name=None, **kwargs):
         self.name = name
 
-from .utils.action_converter import ActionFromLLMConverter
-from .utils.sim_callbacks_loader import load_simulator_setup_from_yaml
+from utils.action_converter import ActionFromLLMConverter
+from utils.sim_callbacks_loader import load_simulator_setup_from_yaml
 import json
 import os
 import sys

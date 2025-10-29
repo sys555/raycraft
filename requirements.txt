@@ -51,3 +51,10 @@ psutil
 efficientnet_pytorch
 huggingface_hub
 openai
+minecraft_data
+gradio
+jinja2
+matplotlib
+minerl
+redis
+attrs
