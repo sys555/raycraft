@@ -139,6 +139,21 @@ class MCSimulator(ToolBase):
             rich_console.log(obs_w)
             rich_console.log(obs_h)
 
+            # 添加 FastResetCallback 以加速后续 reset（如果还没有）
+            if not any(isinstance(cb, FastResetCallback) for cb in sim_callbacks):
+                fast_reset_biomes = env_overrides.get('fast_reset_biomes', ['plains', 'forest', 'mountains'])
+                fast_reset_range = int(env_overrides.get('fast_reset_range', 1000))
+                fast_reset_time = int(env_overrides.get('fast_reset_time', 1000))
+                fast_reset_weather = env_overrides.get('fast_reset_weather', 'clear')
+                
+                sim_callbacks.append(FastResetCallback(
+                    biomes=fast_reset_biomes,
+                    random_tp_range=fast_reset_range,
+                    start_time=fast_reset_time,
+                    start_weather=fast_reset_weather
+                ))
+                rich_console.log(f"[mc_simulator] Added FastResetCallback: biomes={fast_reset_biomes}, range={fast_reset_range}")
+
             # 在 __init__ 中创建 MinecraftSim
             self.simulator = MinecraftSim(
                 obs_size=(obs_w, obs_h),
