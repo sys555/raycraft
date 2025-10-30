@@ -1,1 +1,0 @@
-2025-10-24 07:18:53,208 - MCEnvActor - INFO - MCEnvActor logging to file: /fs-computility-new/nuclear/leishanzhe/repo/AgentGym/raycraft/logs/actor_log_20251024_071853_431228.txt

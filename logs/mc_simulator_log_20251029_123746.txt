@@ -1,3 +1,0 @@
-12:37:46.%f - INFO - Logging to file: /fs-computility-new/nuclear/leishanzhe/repo/raycraft/logs/mc_simulator_log_20251029_123746.txt
-12:37:46.%f - INFO - [mc_simulator] __init__ elapsed=672.06 ms
-12:37:47.%f - INFO - [mc_simulator] reset elapsed=348.75 ms
