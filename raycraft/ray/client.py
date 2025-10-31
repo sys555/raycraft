@@ -315,6 +315,13 @@ class MCRayClient:
         """关闭环境，清理资源"""
         try:
             if self.env_actor:
+                # 无论哪种模式，都需要先调用env_actor.close()来触发RecordCallback保存MP4
+                try:
+                    ray.get(self.env_actor.close.remote())
+                    logger.info("Called env_actor.close() to save recording")
+                except Exception as e:
+                    logger.warning(f"Failed to call env_actor.close(): {e}")
+                
                 if self.is_uuid_mode:
                     # UUID模式：归还环境到全局池中
                     from .global_pool import get_global_env_pool
@@ -323,10 +330,6 @@ class MCRayClient:
                     logger.info(f"Returned environment to pool: {self.client_uuid}")
                 else:
                     # 传统模式：直接销毁环境
-                    try:
-                        ray.get(self.env_actor.close.remote())
-                    except:
-                        pass
                     ray.kill(self.env_actor)
                     logger.info("Environment destroyed")
 

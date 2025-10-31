@@ -45,6 +45,16 @@ class MCEnvActor:
             config: 环境配置，与HTTP版本完全兼容
         """
         try:
+            # 确保项目根目录在sys.path中（Ray Actor在独立进程中运行）
+            project_root = Path(__file__).parent.parent.parent
+            if str(project_root) not in sys.path:
+                sys.path.insert(0, str(project_root))
+            
+            # 确保MineStudio也在sys.path中
+            minestudio_path = project_root / "MineStudio"
+            if minestudio_path.exists() and str(minestudio_path) not in sys.path:
+                sys.path.insert(0, str(minestudio_path))
+            
             # 直接复用现有MCSimulator
             from ..mc_simulator import MCSimulator
 

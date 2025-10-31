@@ -46,7 +46,7 @@ init_inventory:
 sim_callbacks:
   - import: "minestudio.simulator.callbacks.RecordCallback"
     kwargs:
-      record_path: "/fs-computility/ai-shen/leishanzhe/repo/AgentGym/agentenv-mc/output"
+      record_path: "./output"
       fps: 30
       frame_type: "pov"
       # recording: true
