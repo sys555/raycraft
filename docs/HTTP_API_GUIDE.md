@@ -56,9 +56,19 @@ curl -X DELETE http://server:8000/envs/{env_id}
 
 ## Python 客户端（未实现）
 
+### 依赖
+
+训练节点只需要：
+```bash
+pip install requests  # 只需要HTTP库，不需要ray、minestudio等
+```
+
+### 使用
+
 ```python
 from raycraft.http_client import RemoteEnv
 from concurrent.futures import ThreadPoolExecutor
+import requests
 
 # 批量创建
 server = "http://server:8000"
@@ -68,7 +78,7 @@ env_ids = resp.json()["env_ids"]
 # 创建环境对象
 envs = [RemoteEnv(server, env_id) for env_id in env_ids]
 
-# 并行reset（训练代码自己控制并行）
+# 并行reset
 with ThreadPoolExecutor(max_workers=8) as executor:
     obs_list = list(executor.map(lambda e: e.reset(), envs))
 
@@ -85,6 +95,20 @@ for step in range(1000):
 # 关闭
 for env in envs:
     env.close()
+```
+
+### RemoteEnv 实现要求
+
+```python
+# raycraft/http_client.py
+#
+# 只依赖标准库和requests：
+# import requests
+# import json
+# import base64
+# from typing import Tuple, Dict, Any
+#
+# 不依赖：ray, numpy, PIL, cv2, minestudio 等
 ```
 
 ## Action 格式
@@ -104,9 +128,10 @@ action = {"action": "forward"}      # ❌
 ## 注意事项
 
 1. action是JSON字符串，与Ray保持一致
-2. RGB图像自动压缩为JPEG (quality=85)
-3. 批量创建环境，单独操作每个环境
-4. 训练代码用ThreadPool自己控制并行
-5. 必须调用close，否则资源泄漏
+2. RGB图像压缩为base64编码的JPEG字符串
+3. 训练节点只需要 requests，不需要安装 ray/minestudio
+4. 批量创建环境，单独操作每个环境
+5. 训练代码用ThreadPool自己控制并行
+6. 必须调用close，否则资源泄漏
 
 完了。
