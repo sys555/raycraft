@@ -220,3 +220,5 @@ verl/workers/agent/envs/mc/output_video
 wandb/
 
 logs/*
+
+record/*

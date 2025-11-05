@@ -307,7 +307,7 @@ def main():
     PROJECT_ROOT = Path(__file__).parent.parent
     config_path = PROJECT_ROOT / "configs/kill/kill_zombie_with_record.yaml"
 
-    NUM_ENVS = 4  # 环境数量
+    NUM_ENVS = 2  # 环境数量
     NUM_STEPS = 20  # 每个环境执行步数
     USE_RAY_PARALLEL = True  # True=Ray并行, False=线程池并行
 

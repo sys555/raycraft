@@ -325,3 +325,64 @@ class EnvPool:
             "failed_envs": stats["failed_environments"],
             "timestamp": time.time()
         }
+
+    # ===== HTTP API 支持方法 =====
+
+    def create_env(self, env_id: str, env_name: str, env_kwargs: Dict) -> "ray.ActorHandle":
+        """创建单个环境（HTTP API专用）
+
+        Args:
+            env_id: 环境UUID
+            env_name: 环境名称（暂未使用，预留）
+            env_kwargs: 环境配置参数
+
+        Returns:
+            ray.ActorHandle: 环境Actor引用
+        """
+        # 使用现有的create_envs方法
+        success = self.create_envs([env_id], [env_kwargs])
+        if not success:
+            raise RuntimeError(f"Failed to create environment {env_id}")
+
+        return self.env_registry[env_id]
+
+    def get_env(self, env_id: str) -> Optional["ray.ActorHandle"]:
+        """获取环境（HTTP API专用）
+
+        Args:
+            env_id: 环境UUID
+
+        Returns:
+            ray.ActorHandle: 环境Actor引用，如果不存在返回None
+        """
+        if not self.env_exists(env_id):
+            return None
+
+        return self.get_env_by_uuid(env_id)
+
+    def close_env(self, env_id: str) -> bool:
+        """关闭环境（HTTP API专用）
+
+        Args:
+            env_id: 环境UUID
+
+        Returns:
+            bool: 是否成功关闭
+        """
+        return self.destroy_env(env_id)
+
+    def list_envs(self) -> List[str]:
+        """列出所有环境ID（HTTP API专用）
+
+        Returns:
+            List[str]: 环境UUID列表
+        """
+        return list(self.env_registry.keys())
+
+    def get_num_envs(self) -> int:
+        """获取环境数量（HTTP API专用）
+
+        Returns:
+            int: 环境总数
+        """
+        return len(self.env_registry)
