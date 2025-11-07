@@ -13,7 +13,7 @@ RayCraft HTTP Client
 """
 
 import requests
-from typing import Tuple, Dict, Any, List, Optional
+from typing import Tuple, Dict, Any, List, Optional, Union
 
 
 class RemoteEnv:
@@ -48,14 +48,16 @@ class RemoteEnv:
 
     def step(
         self,
-        action: str,
-        timeout: int = 10
+        action: Union[str, Dict[str, int]],
+        timeout: int = 30
     ) -> Tuple[Dict[str, Any], float, bool, bool, Dict[str, Any]]:
         """Step环境
 
         Args:
-            action: JSON格式的action字符串，如 '[{"action": "forward"}]'
-            timeout: 超时时间（秒）
+            action: Action格式支持两种：
+                - str: LLM格式 '[{"action": "forward"}]'
+                - dict: Agent格式 {'buttons': 5, 'camera': 222}
+            timeout: 超时时间（秒），默认30秒
 
         Returns:
             (observation, reward, terminated, truncated, info)

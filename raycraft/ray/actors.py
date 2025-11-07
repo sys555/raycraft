@@ -85,26 +85,28 @@ class MCEnvActor:
         """重置环境
 
         Returns:
-            观察数据（与HTTP版本格式一致）
+            (observation, info) - 与HTTP版本格式一致
         """
         try:
             # MinecraftSim 已在 __init__ 中创建,reset 只需调用 self.simulator.reset()
-            obs, _info = self.simulator.reset()
+            obs, info = self.simulator.reset()
             self.step_count = 0
             logger.debug("Environment reset successfully")
 
             # 大对象优化：自动检测并存储到Object Store
-            return self._optimize_large_object(obs)
+            return self._optimize_large_object(obs), info
 
         except Exception as e:
             logger.error(f"Reset failed: {e}")
             raise
 
-    def step(self, action: str):
+    def step(self, action):
         """执行动作
 
         Args:
-            action: JSON格式的动作字符串（与HTTP版本一致）
+            action: 支持两种格式（与HTTP版本一致）
+                - str: LLM格式 '[{"action": "forward"}]'
+                - dict: Agent格式 {'buttons': 5, 'camera': 222}
 
         Returns:
             (observation, reward, done, info) - 与HTTP版本格式一致

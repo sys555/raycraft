@@ -12,7 +12,7 @@ import uuid
 import base64
 import io
 from contextlib import asynccontextmanager
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 import ray
 import numpy as np
@@ -30,7 +30,7 @@ from raycraft.ray.global_pool import get_global_env_pool
 class BatchCreateRequest(BaseModel):
     count: int = Field(..., ge=1, description="环境数量，必须>=1")
     env_name: str = Field(default="minecraft", description="环境名称")
-    env_kwargs: Dict[str, Any] = Field(default_factory=dict, description="环境参数")
+    env_kwargs: Union[Dict[str, Any], str] = Field(default_factory=dict, description="环境参数（dict）或YAML配置文件路径（str）")
 
 
 class BatchCreateResponse(BaseModel):
@@ -43,7 +43,10 @@ class ResetResponse(BaseModel):
 
 
 class StepRequest(BaseModel):
-    action: str = Field(..., description="JSON格式的action字符串")
+    action: Union[str, Dict[str, int]] = Field(
+        ...,
+        description="Action格式支持两种：1) LLM格式的JSON字符串 '[{\"action\": \"forward\"}]' 2) Agent格式的dict {'buttons': 5, 'camera': 222}"
+    )
 
 
 class StepResponse(BaseModel):
@@ -63,6 +66,54 @@ class HealthResponse(BaseModel):
 # ============================================================================
 # 辅助函数
 # ============================================================================
+
+def _prepare_env_config(base_config: Union[Dict[str, Any], str], env_id: str) -> Dict[str, Any]:
+    """为单个环境准备独立的配置，确保record_path使用UUID子目录
+
+    Args:
+        base_config: 基础配置（dict或YAML路径）
+        env_id: 环境UUID
+
+    Returns:
+        修改后的配置字典（sim_callbacks为实例化的对象）
+    """
+    import copy
+    from pathlib import Path
+    from raycraft.utils.sim_callbacks_loader import load_simulator_setup_from_yaml
+
+    # 1. 如果是YAML路径，先加载并实例化callbacks
+    if isinstance(base_config, str):
+        sim_callbacks, env_overrides = load_simulator_setup_from_yaml(base_config)
+
+        # 修改RecordCallback的record_path（已实例化的对象）
+        for callback in sim_callbacks:
+            if hasattr(callback, 'record_path'):
+                base_path = Path(callback.record_path)
+                # 在基础路径下创建UUID子目录（保持为Path对象）
+                callback.record_path = base_path / env_id
+                # 创建新的UUID子目录
+                callback.record_path.mkdir(parents=True, exist_ok=True)
+
+        # 重新组合config（sim_callbacks为实例化的对象）
+        config = dict(env_overrides)
+        config['sim_callbacks'] = sim_callbacks
+        return config
+
+    # 2. 如果是dict，深拷贝并修改
+    config = copy.deepcopy(base_config)
+
+    # 3. 修改sim_callbacks中RecordCallback的record_path（已实例化的对象）
+    if 'sim_callbacks' in config and isinstance(config['sim_callbacks'], list):
+        for callback in config['sim_callbacks']:
+            if hasattr(callback, 'record_path'):
+                base_path = Path(callback.record_path)
+                # 保持为Path对象
+                callback.record_path = base_path / env_id
+                # 创建新的UUID子目录
+                callback.record_path.mkdir(parents=True, exist_ok=True)
+
+    return config
+
 
 def serialize_value(value: Any) -> Any:
     """递归序列化值，处理numpy数组和Ray对象"""
@@ -151,7 +202,12 @@ async def batch_create_envs(request: BatchCreateRequest):
 
         # 生成UUIDs
         env_ids = [str(uuid.uuid4()) for _ in range(request.count)]
-        configs = [request.env_kwargs] * request.count
+
+        # 为每个环境创建独立的config（避免共享同一个record_path）
+        configs = []
+        for env_id in env_ids:
+            config = _prepare_env_config(request.env_kwargs, env_id)
+            configs.append(config)
 
         # 并行创建
         success = ray.get(env_pool.create_envs.remote(env_ids, configs))
@@ -167,9 +223,12 @@ async def batch_create_envs(request: BatchCreateRequest):
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_detail = f"Failed to create environments: {str(e)}\n{traceback.format_exc()}"
+        print(f"[ERROR] {error_detail}")  # 打印到控制台
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create environments: {str(e)}"
+            detail=error_detail
         )
 
 

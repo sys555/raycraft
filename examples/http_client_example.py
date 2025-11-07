@@ -22,11 +22,23 @@ SERVER_URL = "http://localhost:8000"
 # 辅助函数：批量创建环境ID
 # ============================================================================
 
-def create_env_ids(server_url: str, count: int):
-    """调用批量创建API获取环境ID列表"""
+def create_env_ids(server_url: str, count: int, env_kwargs=None):
+    """调用批量创建API获取环境ID列表
+
+    Args:
+        server_url: 服务器地址
+        count: 环境数量
+        env_kwargs: 环境配置，可以是:
+            - dict: 配置字典
+            - str: YAML配置文件路径
+            - None: 使用默认配置
+    """
+    if env_kwargs is None:
+        env_kwargs = {}
+
     resp = requests.post(
         f"{server_url}/batch/envs",
-        json={"count": count, "env_name": "minecraft", "env_kwargs": {}},
+        json={"count": count, "env_name": "minecraft", "env_kwargs": env_kwargs},
         timeout=60
     )
     resp.raise_for_status()
@@ -96,31 +108,46 @@ def example_context_manager():
 # ============================================================================
 
 def example_batch_parallel():
-    """批量创建环境并并行运行"""
-    print("\n=== 示例 3: 批量并行环境 ===")
+    """批量创建环境并并行运行（使用YAML配置）"""
+    print("\n=== 示例 3: 批量并行环境（带视频录制）===")
 
-    # 批量创建4个环境
-    num_envs = 4
-    env_ids = create_env_ids(SERVER_URL, count=num_envs)
+    # 使用YAML配置批量创建2个环境（并行启动Minecraft进程资源密集）
+    num_envs = 2
+    yaml_config = "configs/simple_record.yaml"
+    print(f"使用配置: {yaml_config}")
+
+    env_ids = create_env_ids(SERVER_URL, count=num_envs, env_kwargs=yaml_config)
     envs = [RemoteEnv(SERVER_URL, env_id) for env_id in env_ids]
     print(f"✓ 创建了 {num_envs} 个环境")
 
     def run_episode(env_idx, env):
-        """单个环境的运行逻辑"""
-        obs, info = env.reset()
+        """单个环境的运行逻辑 - 测试双action格式"""
+        obs, info = env.reset(timeout=180)  # 并行启动时给更长超时
         total_reward = 0
+        step_count = 0
 
+        # 交替使用LLM格式和Agent格式
         for step in range(20):
-            obs, reward, term, trunc, info = env.step('[{"action": "forward"}]')
+            # 偶数步用LLM格式，奇数步用Agent格式
+            if step % 2 == 0:
+                action = '[{"action": "forward"}]'
+            else:
+                action = {'buttons': 3, 'camera': 60}
+
+            obs, reward, term, trunc, info = env.step(action)
             total_reward += reward
+            step_count += 1
 
-            if term or trunc:
-                break
+            # if term or trunc:
+            #     break
 
+        # 触发视频保存
+        env.reset(timeout=180)  # 第二次reset快很多
         env.close()
-        return env_idx, total_reward
+        return env_idx, total_reward, step_count
 
     # 使用线程池并行运行
+    print("\n并行运行环境...")
     with ThreadPoolExecutor(max_workers=num_envs) as executor:
         futures = [
             executor.submit(run_episode, i, env)
@@ -130,8 +157,9 @@ def example_batch_parallel():
         results = [f.result() for f in futures]
 
     print("\n结果:")
-    for env_idx, total_reward in results:
-        print(f"  环境 {env_idx}: 总奖励 = {total_reward:.2f}")
+    for env_idx, total_reward, steps in results:
+        print(f"  环境 {env_idx}: 总奖励 = {total_reward:.2f}, 步数 = {steps}")
+    print(f"✓ 所有视频已保存到: /fs-computility-new/nuclear/leishanzhe/repo/raycraft/output/")
     print()
 
 
@@ -140,17 +168,24 @@ def example_batch_parallel():
 # ============================================================================
 
 def example_custom_actions():
-    """使用不同的 action"""
-    print("\n=== 示例 4: 自定义 action ===")
+    """使用不同的 action（使用YAML配置启用录制）"""
+    print("\n=== 示例 4: 自定义 action（带视频录制）===")
 
-    env_id = create_env_ids(SERVER_URL, count=1)[0]
+    # 使用YAML配置启用录制
+    yaml_config = "configs/simple_record.yaml"
+    print(f"使用配置: {yaml_config}")
+
+    env_id = create_env_ids(SERVER_URL, count=1, env_kwargs=yaml_config)[0]
 
     with RemoteEnv(SERVER_URL, env_id) as env:
         obs, info = env.reset()
         print("✓ Reset完成")
 
-        # 不同的 action 示例
-        actions = [
+        # 测试LLM格式和Agent格式
+        print("\n执行动作（混合使用LLM和Agent格式）:")
+
+        # LLM格式的 action
+        llm_actions = [
             '[{"action": "forward"}]',      # 前进
             '[{"action": "back"}]',         # 后退
             '[{"action": "left"}]',         # 左转
@@ -159,9 +194,55 @@ def example_custom_actions():
             '[{"action": "attack"}]',       # 攻击
         ]
 
-        for action in actions:
-            obs, reward, term, trunc, info = env.step(action)
-            print(f"  Action: {action:30s} -> reward={reward:.2f}")
+        # Agent格式的 action (buttons, camera索引)
+        agent_actions = [
+            {'buttons': 3, 'camera': 60},   # 前进
+            {'buttons': 4, 'camera': 60},   # 后退
+            {'buttons': 1, 'camera': 45},   # 左转
+            {'buttons': 2, 'camera': 75},   # 右转
+            {'buttons': 5, 'camera': 60},   # 跳跃
+            {'buttons': 6, 'camera': 60},   # 攻击
+        ]
+
+        step_count = 0
+        episode_done = False
+        # 交替使用两种格式
+        for llm_action, agent_action in zip(llm_actions, agent_actions):
+            if episode_done:
+                break
+
+            # LLM格式
+            for _ in range(8):
+                obs, reward, term, trunc, info = env.step(llm_action)
+                step_count += 1
+                if step_count % 24 == 0:
+                    print(f"  已执行 {step_count} 步")
+                # if term or trunc:
+                #     print(f"  ⚠ Episode terminated/truncated at step {step_count}")
+                #     print(f"    terminated={term}, truncated={trunc}")
+                #     print(f"    info keys: {list(info.keys())}")
+                #     episode_done = True
+                #     break
+
+            if episode_done:
+                break
+
+            # Agent格式
+            for _ in range(8):
+                obs, reward, term, trunc, info = env.step(agent_action)
+                step_count += 1
+                if step_count % 24 == 0:
+                    print(f"  已执行 {step_count} 步")
+                # if term or trunc:
+                    # episode_done = True
+                    # break
+
+        print(f"✓ 总共执行了 {step_count} 步")
+
+        # 重要：再次reset以触发视频保存（RecordCallback在before_reset时保存）
+        print("\n触发视频保存（调用reset）...")
+        env.reset()
+        print("✓ 视频已保存到: /fs-computility-new/nuclear/leishanzhe/repo/raycraft/output/")
 
     print()
 
@@ -222,6 +303,56 @@ def example_rgb_images():
 
 
 # ============================================================================
+# 示例 7: 使用 YAML 配置文件
+# ============================================================================
+
+def example_yaml_config():
+    """使用 YAML 配置文件创建环境（推荐用于生产环境）"""
+    print("\n=== 示例 7: 使用 YAML 配置文件 ===")
+
+    # 使用 YAML 配置文件路径（相对于项目根目录）
+    yaml_path = "configs/kill/kill_zombie_with_record.yaml"
+
+    print(f"使用配置文件: {yaml_path}")
+
+    # 方式1: 直接传递 YAML 路径字符串
+    env_ids = create_env_ids(SERVER_URL, count=1, env_kwargs=yaml_path)
+    env_id = env_ids[0]
+
+    print(f"✓ 环境创建成功: {env_id}")
+
+    with RemoteEnv(SERVER_URL, env_id) as env:
+        obs, info = env.reset()
+        print("✓ Reset完成")
+
+        # 执行一些动作
+        for i in range(10):
+            obs, reward, term, trunc, info = env.step('[{"action": "attack"}]')
+            print(f"  Step {i+1}: reward={reward:.2f}")
+
+            # if term or trunc:
+            #     break
+
+    print("✓ 环境已关闭（视频应该已保存到 output/ 目录）")
+
+    # 方式2: 传递配置字典（如果需要覆盖某些参数）
+    print("\n方式2: 使用字典配置（可以自定义参数）")
+    dict_config = {
+        "resolution": [640, 360],
+        "timestep_limit": 500
+    }
+    env_ids = create_env_ids(SERVER_URL, count=1, env_kwargs=dict_config)
+    env_id = env_ids[0]
+    print(f"✓ 环境创建成功（使用字典配置）: {env_id}")
+
+    with RemoteEnv(SERVER_URL, env_id) as env:
+        obs, info = env.reset()
+        print("✓ Reset完成")
+
+    print()
+
+
+# ============================================================================
 # 主函数
 # ============================================================================
 
@@ -246,12 +377,13 @@ def main():
         print(f"  当前环境数: {health['num_environments']}")
 
         # 运行示例（注释掉不需要的）
-        example_basic()
-        example_context_manager()
-        # example_batch_parallel()  # 这个比较慢，需要并行reset多个环境
-        example_custom_actions()
-        example_error_handling()
-        example_rgb_images()
+        # example_basic()
+        # example_context_manager()
+        example_batch_parallel()  # 这个比较慢，需要并行reset多个环境
+        # example_custom_actions()  # 演示双action格式 + 视频录制
+        # example_error_handling()
+        # example_rgb_images()
+        # example_yaml_config()  # 演示使用YAML配置文件
 
         print("=" * 70)
         print("所有示例运行完成！")

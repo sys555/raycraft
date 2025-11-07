@@ -1,0 +1,14 @@
+# 完全独立的配置 - 不继承defaults，避免引入任务配置
+
+# 基础配置
+timestep_limit: 500
+seed: null
+
+# 启用录制
+sim_callbacks:
+  - import: "minestudio.simulator.callbacks.RecordCallback"
+    kwargs:
+      record_path: "/fs-computility-new/nuclear/leishanzhe/repo/raycraft/output"  # 使用绝对路径
+      fps: 30
+      frame_type: "pov"
+      recording: true  # 明确启用录制

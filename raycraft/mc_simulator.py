@@ -188,21 +188,67 @@ class MCSimulator(ToolBase):
             logger.info(f"[mc_simulator] __init__ elapsed={elapsed_ms:.2f} ms")
 
 
-    def execute(self, action_string: str, **kwargs) -> tuple:
-        # '[{"action": "attack", "yaw": -25.0, "pitch": 8.0}]'
-        action = self.action_converter.convert(action_string, self._obs_shape)
-        rich_console.log(f"[DEBUG] action_string: {action_string}")
-        rich_console.log(f"[DEBUG] converted_action: {action}")
+    def execute(self, action_input, **kwargs) -> tuple:
+        """执行动作
+
+        Args:
+            action_input: 支持两种格式
+                - str: LLM格式 '[{"action": "attack", "yaw": -25.0, "pitch": 8.0}]'
+                - dict: Agent格式 {'buttons': 5, 'camera': 222}
+        """
+        # 判断action格式并转换
+        if isinstance(action_input, str):
+            # LLM格式：使用ActionConverter转换
+            action = self.action_converter.convert(action_input, self._obs_shape)
+            rich_console.log(f"[DEBUG] LLM action: {action_input}")
+            rich_console.log(f"[DEBUG] converted to: {action}")
+        elif isinstance(action_input, dict):
+            # Agent格式：将整数转换为numpy数组
+            import numpy as np
+            action = {}
+            for key, value in action_input.items():
+                if isinstance(value, int):
+                    action[key] = np.array(value)
+                else:
+                    action[key] = value
+            rich_console.log(f"[DEBUG] Agent action (dict): {action_input}")
+            rich_console.log(f"[DEBUG] converted to numpy: {action}")
+        else:
+            raise ValueError(f"Unsupported action type: {type(action_input)}")
+
         obs, reward, terminated, truncated, info = self.simulator.step(action)
-        done = not (terminated or truncated)
+        done =  (terminated or truncated)
         self.last_obs = obs  # 更新最后观察状态
         return obs, reward, done, info
 
-    def step(self, action_string: str, **kwargs) -> tuple:
-        # '[{"action": "attack", "yaw": -25.0, "pitch": 8.0}]'
-        action = self.action_converter.convert(action_string, self._obs_shape)
-        rich_console.log(f"[DEBUG] action_string: {action_string}")
-        rich_console.log(f"[DEBUG] converted_action: {action}")
+    def step(self, action_input, **kwargs) -> tuple:
+        """执行动作
+
+        Args:
+            action_input: 支持两种格式
+                - str: LLM格式 '[{"action": "attack", "yaw": -25.0, "pitch": 8.0}]'
+                - dict: Agent格式 {'buttons': 5, 'camera': 222}
+        """
+        # 判断action格式并转换
+        if isinstance(action_input, str):
+            # LLM格式：使用ActionConverter转换
+            action = self.action_converter.convert(action_input, self._obs_shape)
+            rich_console.log(f"[DEBUG] LLM action: {action_input}")
+            rich_console.log(f"[DEBUG] converted to: {action}")
+        elif isinstance(action_input, dict):
+            # Agent格式：将整数转换为numpy数组
+            import numpy as np
+            action = {}
+            for key, value in action_input.items():
+                if isinstance(value, int):
+                    action[key] = np.array(value)
+                else:
+                    action[key] = value
+            rich_console.log(f"[DEBUG] Agent action (dict): {action_input}")
+            rich_console.log(f"[DEBUG] converted to numpy: {action}")
+        else:
+            raise ValueError(f"Unsupported action type: {type(action_input)}")
+
         obs, reward, terminated, truncated, info = self.simulator.step(action)
         done = not (terminated or truncated)
         self.last_obs = obs  # 更新最后观察状态
