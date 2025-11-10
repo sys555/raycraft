@@ -39,7 +39,7 @@ def create_env_ids(server_url: str, count: int, env_kwargs=None):
     resp = requests.post(
         f"{server_url}/batch/envs",
         json={"count": count, "env_name": "minecraft", "env_kwargs": env_kwargs},
-        timeout=60
+        timeout=120  # 增加超时：批量创建会等待所有环境reset完成
     )
     resp.raise_for_status()
     return resp.json()["env_ids"]
@@ -113,7 +113,7 @@ def example_batch_parallel():
 
     # 使用YAML配置批量创建2个环境（并行启动Minecraft进程资源密集）
     num_envs = 2
-    yaml_config = "configs/simple_record.yaml"
+    yaml_config = "configs/kill/kill_zombie_with_record.yaml"
     print(f"使用配置: {yaml_config}")
 
     env_ids = create_env_ids(SERVER_URL, count=num_envs, env_kwargs=yaml_config)
@@ -122,12 +122,12 @@ def example_batch_parallel():
 
     def run_episode(env_idx, env):
         """单个环境的运行逻辑 - 测试双action格式"""
-        obs, info = env.reset(timeout=180)  # 并行启动时给更长超时
+        # 注意：batch_create_envs 已在后台自动执行 reset，无需首次 reset
         total_reward = 0
         step_count = 0
 
         # 交替使用LLM格式和Agent格式
-        for step in range(20):
+        for step in range(10):
             # 偶数步用LLM格式，奇数步用Agent格式
             if step % 2 == 0:
                 action = '[{"action": "forward"}]'
@@ -142,7 +142,7 @@ def example_batch_parallel():
             #     break
 
         # 触发视频保存
-        env.reset(timeout=180)  # 第二次reset快很多
+        env.reset(timeout=180)
         env.close()
         return env_idx, total_reward, step_count
 
