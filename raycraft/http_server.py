@@ -218,6 +218,14 @@ async def batch_create_envs(request: BatchCreateRequest):
                 detail="Failed to create some environments"
             )
 
+        # 后台自动触发 reset（不等待完成）
+        # 这样用户首次使用环境时已经初始化完成
+        for env_id in env_ids:
+            env_ref = ray.get(env_pool.get_env.remote(env_id))
+            if env_ref:
+                # 不使用 ray.get()，让 reset 在后台异步执行
+                env_ref.reset.remote()
+
         return BatchCreateResponse(env_ids=env_ids)
 
     except HTTPException:
