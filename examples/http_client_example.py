@@ -120,9 +120,27 @@ def example_batch_parallel():
     envs = [RemoteEnv(SERVER_URL, env_id) for env_id in env_ids]
     print(f"✓ 创建了 {num_envs} 个环境")
 
+    # 等待后台 reset 完成并获取结果
+    print("等待后台 reset 完成（首次启动需约60秒）...")
+    import time
+    max_retries = 30  # 最多重试30次
+    for env_idx, env in enumerate(envs):
+        for retry in range(max_retries):
+            try:
+                obs, info = env.get_reset_result(timeout=120)  # 单次等待最多120秒
+                print(f"  环境 {env_idx}: reset 完成")
+                break
+            except Exception as e:
+                if retry < max_retries - 1:
+                    print(f"  环境 {env_idx}: 重试 {retry + 1}/{max_retries}")
+                    time.sleep(2)  # 等待2秒后重试
+                else:
+                    print(f"  环境 {env_idx}: reset 超时")
+                    raise
+
     def run_episode(env_idx, env):
         """单个环境的运行逻辑 - 测试双action格式"""
-        # 注意：batch_create_envs 已在后台自动执行 reset，无需首次 reset
+        # 注意：batch_create_envs 已在后台自动执行 reset，使用 get_reset_result 获取结果
         total_reward = 0
         step_count = 0
 

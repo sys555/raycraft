@@ -11,6 +11,7 @@ RayCraft HTTP Server
 import uuid
 import base64
 import io
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Union
 
@@ -218,18 +219,13 @@ async def batch_create_envs(request: BatchCreateRequest):
                 detail="Failed to create some environments"
             )
 
-        # 后台自动触发 reset 并等待完成
-        # 这样用户首次使用环境时已经初始化完成
-        reset_futures = []
+        # 后台自动触发 reset（异步，不等待完成）
+        # 客户端可通过 get_reset_result 获取结果
         for env_id in env_ids:
             env_ref = ray.get(env_pool.get_env.remote(env_id))
             if env_ref:
-                # 触发reset但不立即等待，收集所有futures
-                reset_futures.append(env_ref.reset.remote())
-
-        # 并行等待所有reset完成
-        if reset_futures:
-            ray.get(reset_futures)
+                # 触发异步 reset，不等待完成
+                env_ref.reset.remote()
 
         return BatchCreateResponse(env_ids=env_ids)
 
@@ -279,6 +275,58 @@ async def reset_env(env_id: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to reset: {str(e)}"
+        )
+
+
+@app.get("/envs/{env_id}/reset_result", response_model=ResetResponse)
+async def get_reset_result(env_id: str, wait: int = 0):
+    """获取后台 reset 的结果（用于 batch_create_envs 后的异步 reset）
+
+    Args:
+        env_id: 环境ID
+        wait: 等待时间（秒），如果reset未完成，最多等待这么多秒
+    """
+    try:
+        import time
+        env_pool = get_global_env_pool()
+        env_ref = ray.get(env_pool.get_env.remote(env_id))
+
+        if env_ref is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Environment {env_id} not found"
+            )
+
+        # 轮询等待 reset 完成
+        start_time = time.time()
+        while True:
+            obs, info = ray.get(env_ref.get_reset_result.remote())
+
+            if obs is not None:
+                # reset 完成
+                return ResetResponse(
+                    observation=serialize_observation(obs),
+                    info=serialize_value(info)
+                )
+
+            # 检查是否超时
+            elapsed = time.time() - start_time
+            if elapsed >= wait:
+                # 返回202表示reset正在进行中
+                raise HTTPException(
+                    status_code=status.HTTP_202_ACCEPTED,
+                    detail=f"Environment {env_id} reset is still in progress"
+                )
+
+            # 等待一小段时间后重试
+            await asyncio.sleep(1)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get reset result: {str(e)}"
         )
 
 

@@ -28,6 +28,9 @@ class RemoteEnv:
         self.server_url = server_url.rstrip('/')
         self.env_id = env_id
         self.session = requests.Session()  # 连接复用
+        
+        self.reset_obs = None
+        self.reset_info = None
 
     def reset(self, timeout: int = 120) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Reset环境
@@ -44,6 +47,9 @@ class RemoteEnv:
         )
         resp.raise_for_status()
         data = resp.json()
+        self.reset_obs = data["observation"]
+        self.reset_info = data["info"]
+        
         return data["observation"], data["info"]
 
     def step(
@@ -90,6 +96,33 @@ class RemoteEnv:
         resp.raise_for_status()
         self.session.close()
 
+    def get_reset_result(self, wait: int = 60, timeout: int = 120) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """获取最后一次 reset 的结果
+
+        用于 batch_create_envs 后台异步 reset 的结果获取
+
+        Args:
+            wait: 服务器端等待时间（秒），如果reset未完成，服务器最多等待这么多秒
+            timeout: HTTP超时时间（秒），应该 >= wait
+
+        Returns:
+            (observation, info)
+
+        Raises:
+            HTTPError: 如果reset超时或环境不存在
+        """
+        resp = self.session.get(
+            f"{self.server_url}/envs/{self.env_id}/reset_result",
+            params={"wait": wait},
+            timeout=timeout
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        self.reset_obs = data["observation"]
+        self.reset_info = data["info"]
+
+        return data["observation"], data["info"]
+    
     def __enter__(self):
         """上下文管理器入口"""
         return self

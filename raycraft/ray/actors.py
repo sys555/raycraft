@@ -75,6 +75,10 @@ class MCEnvActor:
             self.step_count = 0
             self.created_at = time.time()
 
+            # 保存最后一次 reset 的结果，供 get_reset_result 使用
+            self._last_reset_obs = None
+            self._last_reset_info = None
+
             logger.info(f"MCEnvActor initialized successfully")
 
         except Exception as e:
@@ -92,6 +96,10 @@ class MCEnvActor:
             obs, info = self.simulator.reset()
             self.step_count = 0
             logger.debug("Environment reset successfully")
+
+            # 保存 reset 结果，供 get_reset_result 使用
+            self._last_reset_obs = obs
+            self._last_reset_info = info
 
             # 大对象优化：自动检测并存储到Object Store
             return self._optimize_large_object(obs), info
@@ -163,6 +171,21 @@ class MCEnvActor:
             "actor_id": ray.get_runtime_context().actor_id,
             "node_id": ray.get_runtime_context().node_id
         }
+
+    def get_reset_result(self):
+        """获取最后一次 reset 的结果
+
+        用于 batch_create_envs 后台异步 reset 的结果获取
+
+        Returns:
+            (observation, info) 如果已 reset
+            (None, None) 如果尚未 reset
+        """
+        if self._last_reset_obs is None:
+            return None, None
+
+        # 大对象优化
+        return self._optimize_large_object(self._last_reset_obs), self._last_reset_info
 
     def _optimize_large_object(self, obj):
         """大对象优化：超过1MB自动存储到Object Store
