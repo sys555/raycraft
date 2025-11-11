@@ -11,7 +11,7 @@ RayCraft HTTP Client 使用示例
 
 import requests
 from raycraft.http_client import RemoteEnv
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 # 服务器地址（替换为实际地址）
 SERVER_URL = "http://localhost:8000"
@@ -107,76 +107,118 @@ def example_context_manager():
 # 示例 3: 批量并行环境
 # ============================================================================
 
+def _run_episode_for_multiprocess(args):
+    """多进程worker函数 - 测试双action格式
+
+    Args:
+        args: (env_idx, server_url, env_id) 元组
+    """
+    import time
+    env_idx, server_url, env_id = args
+
+    # 在子进程中创建 RemoteEnv
+    env = RemoteEnv(server_url, env_id)
+
+    print(f"[LOG] 环境 [{env_idx}] 开始运行 episode...")
+    total_reward = 0
+    step_count = 0
+
+    # 交替使用LLM格式和Agent格式
+    for step in range(10):
+        # 偶数步用LLM格式，奇数步用Agent格式
+        if step % 2 == 0:
+            action = '[{"action": "forward"}]'
+            action_type = "LLM"
+        else:
+            action = {'buttons': 3, 'camera': 60}
+            action_type = "Agent"
+
+        step_start = time.time()
+        obs, reward, term, trunc, info = env.step(action)
+        step_duration = time.time() - step_start
+
+        total_reward += reward
+        step_count += 1
+
+        print(f"[LOG] 环境 [{env_idx}] Step {step}: action_type={action_type}, reward={reward:.2f}, term={term}, trunc={trunc}, 耗时={step_duration:.3f}秒")
+
+    # 触发视频保存
+    print(f"[LOG] 环境 [{env_idx}] 触发最终 reset 以保存视频...")
+    reset_start = time.time()
+    env.reset(timeout=180)
+    reset_duration = time.time() - reset_start
+    print(f"[LOG] 环境 [{env_idx}] 最终 reset 完成，耗时: {reset_duration:.2f}秒")
+
+    print(f"[LOG] 环境 [{env_idx}] 关闭环境...")
+    env.close()
+    print(f"[LOG] 环境 [{env_idx}] 完成，总奖励={total_reward:.2f}, 步数={step_count}")
+    return env_idx, total_reward, step_count
+
+
 def example_batch_parallel():
     """批量创建环境并并行运行（使用YAML配置）"""
+    import time
     print("\n=== 示例 3: 批量并行环境（带视频录制）===")
 
     # 使用YAML配置批量创建2个环境（并行启动Minecraft进程资源密集）
     num_envs = 2
     yaml_config = "configs/kill/kill_zombie_with_record.yaml"
-    print(f"使用配置: {yaml_config}")
+    print(f"[LOG] 使用配置: {yaml_config}")
+    print(f"[LOG] 请求创建 {num_envs} 个环境...")
 
+    create_start = time.time()
     env_ids = create_env_ids(SERVER_URL, count=num_envs, env_kwargs=yaml_config)
-    envs = [RemoteEnv(SERVER_URL, env_id) for env_id in env_ids]
-    print(f"✓ 创建了 {num_envs} 个环境")
+    create_duration = time.time() - create_start
+
+    print(f"[LOG] ✓ batch_create_envs 返回，耗时: {create_duration:.2f}秒")
+    print(f"[LOG] 环境 IDs:")
+    for i, env_id in enumerate(env_ids):
+        print(f"      [{i}] {env_id}")
 
     # 等待后台 reset 完成并获取结果
-    print("等待后台 reset 完成（首次启动需约60秒）...")
-    import time
+    print("[LOG] 等待后台 reset 完成（首次启动需约60秒）...")
     max_retries = 30  # 最多重试30次
-    for env_idx, env in enumerate(envs):
+    for env_idx, env_id in enumerate(env_ids):
+        print(f"[LOG] 环境 [{env_idx}] 正在获取 reset 结果...")
+        reset_start = time.time()
+        env = RemoteEnv(SERVER_URL, env_id)
         for retry in range(max_retries):
             try:
-                obs, info = env.get_reset_result(timeout=120)  # 单次等待最多120秒
-                print(f"  环境 {env_idx}: reset 完成")
+                obs, info = env.get_reset_result(wait=60, timeout=120)
+                reset_duration = time.time() - reset_start
+                print(f"[LOG] 环境 [{env_idx}] reset 完成，耗时: {reset_duration:.2f}秒")
+                print(f"[LOG]   obs keys: {list(obs.keys()) if isinstance(obs, dict) else type(obs)}")
+                print(f"[LOG]   info: {info}")
                 break
             except Exception as e:
                 if retry < max_retries - 1:
-                    print(f"  环境 {env_idx}: 重试 {retry + 1}/{max_retries}")
+                    print(f"[LOG] 环境 [{env_idx}] 重试 {retry + 1}/{max_retries} (错误: {e})")
                     time.sleep(2)  # 等待2秒后重试
                 else:
-                    print(f"  环境 {env_idx}: reset 超时")
+                    print(f"[LOG] 环境 [{env_idx}] reset 超时")
                     raise
 
-    def run_episode(env_idx, env):
-        """单个环境的运行逻辑 - 测试双action格式"""
-        # 注意：batch_create_envs 已在后台自动执行 reset，使用 get_reset_result 获取结果
-        total_reward = 0
-        step_count = 0
-
-        # 交替使用LLM格式和Agent格式
-        for step in range(10):
-            # 偶数步用LLM格式，奇数步用Agent格式
-            if step % 2 == 0:
-                action = '[{"action": "forward"}]'
-            else:
-                action = {'buttons': 3, 'camera': 60}
-
-            obs, reward, term, trunc, info = env.step(action)
-            total_reward += reward
-            step_count += 1
-
-            # if term or trunc:
-            #     break
-
-        # 触发视频保存
-        env.reset(timeout=180)
-        env.close()
-        return env_idx, total_reward, step_count
-
-    # 使用线程池并行运行
-    print("\n并行运行环境...")
-    with ThreadPoolExecutor(max_workers=num_envs) as executor:
+    # 使用进程池并行运行
+    print("\n[LOG] 并行运行环境...")
+    parallel_start = time.time()
+    with ProcessPoolExecutor(max_workers=num_envs) as executor:
+        print(f"[LOG] 提交 {num_envs} 个任务到进程池...")
+        # 准备参数：(env_idx, server_url, env_id)
+        args_list = [(i, SERVER_URL, env_id) for i, env_id in enumerate(env_ids)]
         futures = [
-            executor.submit(run_episode, i, env)
-            for i, env in enumerate(envs)
+            executor.submit(_run_episode_for_multiprocess, args)
+            for args in args_list
         ]
 
+        print(f"[LOG] 等待所有任务完成...")
         results = [f.result() for f in futures]
 
-    print("\n结果:")
+    parallel_duration = time.time() - parallel_start
+    print(f"[LOG] 所有环境完成，总耗时: {parallel_duration:.2f}秒")
+
+    print("\n[LOG] 最终结果:")
     for env_idx, total_reward, steps in results:
-        print(f"  环境 {env_idx}: 总奖励 = {total_reward:.2f}, 步数 = {steps}")
+        print(f"  环境 [{env_idx}]: 总奖励 = {total_reward:.2f}, 步数 = {steps}")
     print(f"✓ 所有视频已保存到: /fs-computility-new/nuclear/leishanzhe/repo/raycraft/output/")
     print()
 

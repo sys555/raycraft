@@ -1,10 +1,18 @@
 import importlib
 import inspect
 import logging
+import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import yaml
+
+# 优先使用本地 MineStudio（在导入任何 minestudio 模块之前）
+_current_file = Path(__file__).resolve()
+_raycraft_root = _current_file.parent.parent.parent
+_minestudio_path = _raycraft_root / "MineStudio"
+if _minestudio_path.exists() and str(_minestudio_path) not in sys.path:
+    sys.path.insert(0, str(_minestudio_path))
 
 logger = logging.getLogger(__name__)
 
